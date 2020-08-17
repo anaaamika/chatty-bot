@@ -6,27 +6,47 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import tkinter
 from tkinter import *
+import wikipedia as wiki
 
-f = open('chatdata.txt', 'r', errors='ignore')
+results = []
+sent_tokens = []
+word_tokens = []
 
-raw = f.read()
+# nltk.download('punkt')             # first time only
+# nltk.download('wordnet')           # first time only
 
-raw = raw.lower()
+def preprocess(topic):
+    global sent_tokens
+    global word_tokens
 
-# nltk.download('punkt')
-# nltk.download('wordnet')
+    article = wiki.page(topic)
+    raw = article.content
+    raw = raw.lower()
 
-sent_tokens = nltk.sent_tokenize(raw)
-word_tokens = nltk.word_tokenize(raw)
+    sent_tokens = nltk.sent_tokenize(raw)
+    word_tokens = nltk.word_tokenize(raw)
+    return
+
+def find_summary(results_list):
+    if len(results_list) > 0:
+        try:
+            summary = wiki.summary(results_list[0], sentences=2)
+            global results
+            results = results_list[1:]
+            return [results_list[0], "Here's what I found: " + results_list[0] + '\n' + summary + '\n\n' \
+                   + 'Is this what you were looking for?']
+        except:
+            results_list = results_list[1:]
+            return find_summary(results_list)
+    else:
+        return "Hmm, I can't seem to find what you're looking for. Please try again"
 
 lemmer = nltk.stem.WordNetLemmatizer()
 
 def LemTokens(tokens):
     return [lemmer.lemmatize(token) for token in tokens]
 
-
 remove_punct_dict = dict((ord(punct), None) for punct in string.punctuation)
-
 
 def LemNormalize(text):
     return LemTokens(nltk.word_tokenize(text.lower().translate(remove_punct_dict)))
@@ -40,6 +60,10 @@ def greeting(sentence):
     for word in sentence.split():
         if word.lower() in GREETING_INPUTS:
             return random.choice(GREETING_RESPONSES)
+
+FILLER_WORDS = ['Great', 'OK', 'Perfect']
+def natural_speech():
+    return random.choice(FILLER_WORDS)
 
 
 def response(user_response):
@@ -64,13 +88,14 @@ def response(user_response):
 
 # building GUI using tkinter
 def send():
+    global select_topic
+    global results
     msg = EntryBox.get('1.0', 'end-1c').strip()
     EntryBox.delete('0.0', END)
 
     if msg != '':
         ChatLog.config(state=NORMAL)
         ChatLog.insert(END, 'You: ' + msg + '\n\n')
-        # ChatLog.config(foreground='#442265', font=('Verdana', 12))
 
         if msg != "bye":
             if msg == 'thanks' or msg == 'thank you':
@@ -79,8 +104,22 @@ def send():
                 if greeting(msg) != None:
                     res = greeting(msg)
                 else:
-                    res = response(msg)
-                    sent_tokens.remove(msg)
+                    if select_topic == True:
+                        if msg.lower() == 'yes':
+                            select_topic = False
+                            res = natural_speech() + ", what would you like to know?"
+                        elif msg.lower() == 'no':
+                            topic = find_summary(results)
+                            res = topic[1]
+                            preprocess(topic[0])
+                        else:
+                            results = wiki.search(msg, results=10)
+                            topic = find_summary(results)
+                            res = topic[1]
+                            preprocess(topic[0])
+                    else:
+                        res = response(msg)
+                        sent_tokens.remove(msg)
         else:
             res = "Bye! Take care..."
         ChatLog.insert(END, 'Chatty: ' + res + '\n\n')
@@ -102,6 +141,7 @@ ChatLog.insert(END,
                + '\n' + 'If you want to exit, type Bye!'
                + '\n\n' + 'Please enter a topic...' + '\n\n')
 ChatLog.config(state=DISABLED)
+select_topic = True
 
 # Bind scrollbar to chat window
 scrollbar = Scrollbar(base, command=ChatLog.yview, cursor='heart')
@@ -113,7 +153,6 @@ SendButton = Button(base, font=('Verdana', 12, 'bold'), text='Send', width='10',
 
 # Create user input box
 EntryBox = Text(base, bd=0, bg='white', width='29', height='5', foreground='#442265', font=('Verdana', 12))
-# EntryBox.bind('<Return>', send)
 
 # Place all components on screen
 scrollbar.place(x=376, y=6, height=431)
