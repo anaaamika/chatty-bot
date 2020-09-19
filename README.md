@@ -1,2 +1,2 @@
 # ChattyBot
-Finding the answer to life, the universe and everything one chatbot at a time!
+Creating a simple Python chatbot using natural language processing and NLTK library. 
